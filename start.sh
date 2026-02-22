@@ -26,9 +26,6 @@ pkg update -y
 log "Instalando dependencias del sistema"
 pkg install -y python python-pip curl unzip python-cryptography
 
-log "Actualizando pip"
-python -m pip install --upgrade pip
-
 log "Instalando dependencias de Python"
 pip install --upgrade werkzeug flask flask-socketio requests beautifulsoup4 flet psutil
 
