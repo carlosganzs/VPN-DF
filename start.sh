@@ -45,7 +45,7 @@ install_dependencies() {
   pkg install -y python python-pip curl unzip python-cryptography
 
   log "Instalando dependencias de Python"
-  pip install --upgrade werkzeug flask flask-socketio requests beautifulsoup4 flet psutil
+  pip install --upgrade werkzeug flask flask-socketio requests beautifulsoup4 flet
 }
 
 setup_storage_permission() {
