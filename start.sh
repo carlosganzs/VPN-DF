@@ -19,6 +19,24 @@ BASE_DIR="$HOME/VPN-DF"
 ZIP_PATH="$BASE_DIR/midescargador.zip"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+is_termux() {
+  [[ -n "${TERMUX_VERSION:-}" ]]
+}
+
+pause_continue() {
+  printf "\nPresiona ENTER para continuar..."
+  read -r
+}
+
+print_banner() {
+  clear || true
+  echo "╔══════════════════════════════════════════════════════╗"
+  echo "║                   DK DOWNLOADER                     ║"
+  echo "║                Launcher interactivo                 ║"
+  echo "╚══════════════════════════════════════════════════════╝"
+  echo
+}
+
 install_dependencies() {
   log "Actualizando repositorios de Termux"
   pkg update -y
@@ -104,6 +122,11 @@ install_from_github() {
 }
 
 repair_termux_repos_and_libs() {
+  if ! is_termux; then
+    warn "Esta reparación está pensada para Termux. Saltando..."
+    return 0
+  fi
+
   if command -v termux-change-repo >/dev/null 2>&1; then
     log "Abriendo termux-change-repo (elige mirror estable y confirma)"
     if ! termux-change-repo; then
@@ -120,17 +143,70 @@ repair_termux_repos_and_libs() {
   log "Reparación de repositorios/librerías completada"
 }
 
+auto_fix_termux_if_needed() {
+  if ! is_termux; then
+    return 0
+  fi
+
+  local need_fix=0
+
+  if [[ ! -d "$HOME/storage" ]]; then
+    warn "No se detecta acceso de almacenamiento de Termux."
+    need_fix=1
+  fi
+
+  if ! command -v python >/dev/null 2>&1; then
+    warn "Python no está disponible en Termux."
+    need_fix=1
+  fi
+
+  if ! command -v pkg >/dev/null 2>&1; then
+    warn "No se encontró 'pkg'. Tu entorno de Termux parece incompleto."
+    need_fix=1
+  fi
+
+  if [[ "$need_fix" -eq 1 ]]; then
+    warn "Se detectaron problemas base. Ejecutando auto-reparación (equivalente a opción 3)."
+    repair_termux_repos_and_libs
+    if [[ ! -d "$HOME/storage" ]]; then
+      setup_storage_permission
+    fi
+  fi
+}
+
 show_menu() {
+  print_banner
+  if is_termux; then
+    echo "Entorno detectado: Termux (${TERMUX_VERSION})"
+  else
+    echo "Entorno detectado: Bash estándar (no Termux)"
+  fi
+  echo
   echo
   echo "==================== DK DOWNLOADER ===================="
   echo "1) Instalar desde GitHub (borra instalación actual y reinstala)"
   echo "2) Iniciar (sin instalar)"
-  echo "3) Reparar librerías de Termux (termux-change-repo + apt update/full-upgrade)"
+  echo "3) Reparar Termux (repos/librerías/permisos)"
+  echo "4) Auto diagnosticar y corregir (recomendado)"
   echo "0) Salir"
   echo "======================================================="
 }
 
+auto_doctor() {
+  log "Ejecutando diagnóstico automático..."
+  auto_fix_termux_if_needed
+  if ! resolve_dk_path >/dev/null 2>&1; then
+    warn "No se encontró dk.py. Instalando desde GitHub..."
+    install_from_github
+    return 0
+  fi
+  log "Diagnóstico completo. Intentando iniciar aplicación..."
+  start_app
+}
+
 main() {
+  auto_fix_termux_if_needed
+
   while true; do
     show_menu
     read -rp "Selecciona una opción: " option
@@ -142,17 +218,23 @@ main() {
       2)
         if ! start_app; then
           warn "No se pudo iniciar. Instala primero con la opción 1."
+          pause_continue
         fi
         ;;
       3)
         repair_termux_repos_and_libs
+        pause_continue
+        ;;
+      4)
+        auto_doctor
         ;;
       0|q|Q|salir|SALIR)
         log "Saliendo."
         exit 0
         ;;
       *)
-        warn "Opción inválida. Usa 1, 2, 3 o 0."
+        warn "Opción inválida. Usa 1, 2, 3, 4 o 0."
+        pause_continue
         ;;
     esac
   done
