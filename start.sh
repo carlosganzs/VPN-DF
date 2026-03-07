@@ -45,7 +45,58 @@ install_dependencies() {
   pkg install -y python python-pip curl unzip python-cryptography
 
   log "Instalando dependencias de Python"
-  pip install --upgrade werkzeug flask flask-socketio requests beautifulsoup4 flet
+  pip install --upgrade pip setuptools wheel
+  pip install --upgrade werkzeug flask flask-socketio requests beautifulsoup4 flet psutil
+
+  apply_armv8l_pip_workaround
+}
+
+apply_armv8l_pip_workaround() {
+  # Algunos builds de Android/Termux reportan la máquina como armv8l y ciertas
+  # versiones de pip/packaging no la mapean, provocando KeyError: 'armv8l'.
+  local machine
+  machine="$(python - <<'PY'
+import platform
+print(platform.machine())
+PY
+)"
+
+  if [[ "$machine" != "armv8l" ]]; then
+    return 0
+  fi
+
+  warn "Detectado armv8l: aplicando compatibilidad de pip para Android"
+
+  python - <<'PY'
+from pathlib import Path
+import inspect
+
+import pip._vendor.packaging.tags as tags
+
+path = Path(tags.__file__).resolve()
+src = path.read_text(encoding="utf-8")
+
+# Caso 1: diccionario indexado directamente -> KeyError
+patched = src.replace(
+    '}[machine]',
+    '}.get(machine, "armeabi_v7a" if machine == "armv8l" else machine)'
+)
+
+# Caso 2: tabla con armv7l pero sin armv8l
+if '"armv7l": "armeabi_v7a"' in patched and '"armv8l": "armeabi_v7a"' not in patched:
+    patched = patched.replace(
+        '"armv7l": "armeabi_v7a"',
+        '"armv7l": "armeabi_v7a",\n        "armv8l": "armeabi_v7a"'
+    )
+
+if patched != src:
+    backup = path.with_suffix(path.suffix + ".bak")
+    backup.write_text(src, encoding="utf-8")
+    path.write_text(patched, encoding="utf-8")
+    print(f"Parche aplicado: {path}")
+else:
+    print("No fue necesario parchear tags.py")
+PY
 }
 
 setup_storage_permission() {
