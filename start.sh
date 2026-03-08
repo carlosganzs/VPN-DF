@@ -48,7 +48,7 @@ install_dependencies() {
 
   log "Instalando dependencias de Python"
   pip install --upgrade pip setuptools wheel
-  pip install --upgrade werkzeug flask flask-socketio requests beautifulsoup4 flet psutil
+  pip install --upgrade werkzeug flask flask-socketio requests beautifulsoup4 flet
 }
 
 apply_armv8l_pip_workaround() {
